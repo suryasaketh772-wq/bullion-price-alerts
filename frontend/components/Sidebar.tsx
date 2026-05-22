@@ -93,7 +93,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         ))}
       </nav>
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-        <p className="text-xs text-gray-500 dark:text-gray-400">Gold & Silver Alerts</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">Bullion Market Alerts</p>
       </div>
     </aside>
   );

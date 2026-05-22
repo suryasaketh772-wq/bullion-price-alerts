@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gold & Silver Price Alerts",
-  description: "Monitor and get alerts for Gold and Silver prices",
+  title: "Bullion Market Alerts",
+  description: "Monitor and get alerts for Gold, Silver and Bullion market prices",
 };
 
 export const viewport: Viewport = {

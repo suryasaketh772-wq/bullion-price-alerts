@@ -24,7 +24,7 @@ export default function Navbar({ onMenuClick, prices, isDark, onThemeToggle }: N
         <div className="w-8 h-8 rounded-full bg-yellow-400 border-2 border-yellow-500 flex items-center justify-center text-yellow-900 font-bold text-xs shrink-0">
           Au
         </div>
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Gold & Silver Alert</h1>
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Bullion Market Alerts</h1>
       </div>
 
       {/* Price Display in Center */}
