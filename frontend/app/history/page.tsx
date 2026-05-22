@@ -21,13 +21,25 @@ function getBaseUrl() {
 export default function HistoryPage() {
   const [history, setHistory] = useState<AlertHistory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const load = () => {
-    setLoading(true);
-    fetch(`${getBaseUrl()}/alerts/history?t=${Date.now()}`, { cache: "no-store" })
+  const fetchHistory = async () => {
+    const data = await fetch(`${getBaseUrl()}/alerts/history?t=${Date.now()}`, { cache: "no-store" })
       .then(r => r.ok ? r.json() : [])
-      .then(data => { setHistory(data); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch(() => []);
+    setHistory(data);
+  };
+
+  const load = async () => {
+    setLoading(true);
+    await fetchHistory();
+    setLoading(false);
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchHistory(), new Promise(r => setTimeout(r, 500))]);
+    setRefreshing(false);
   };
 
   const handleClearHistory = async () => {
@@ -38,7 +50,6 @@ export default function HistoryPage() {
         headers: { "Content-Type": "application/json" },
       });
       if (response.ok) {
-        setHistory([]);
         load();
       } else {
         const errorText = await response.text();
@@ -59,11 +70,12 @@ export default function HistoryPage() {
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Alert History</h2>
         <div className="flex items-center gap-2">
           <button
-            onClick={load}
-            className="p-2 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100 dark:hover:text-white dark:hover:bg-gray-700 transition-colors"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-2 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100 dark:hover:text-white dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
             title="Refresh"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
           </button>

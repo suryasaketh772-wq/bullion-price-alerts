@@ -44,6 +44,7 @@ export function PriceProvider({ children }: { children: ReactNode }) {
 
   const notifEnabledRef = useRef(true);
   const soundEnabledRef = useRef(true);
+  const pendingPrices = useRef<Prices | null>(null);
 
   useEffect(() => {
     const n = localStorage.getItem("notificationsEnabled");
@@ -83,18 +84,7 @@ export function PriceProvider({ children }: { children: ReactNode }) {
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === "price_update") {
-          setPrices(prev => ({
-            ...prev,
-            gold: data.data.gold,
-            silver: data.data.silver,
-            usdinr: data.data.usdinr ?? prev.usdinr,
-            gold_high: data.data.gold_high ?? prev.gold_high,
-            gold_low: data.data.gold_low ?? prev.gold_low,
-            silver_high: data.data.silver_high ?? prev.silver_high,
-            silver_low: data.data.silver_low ?? prev.silver_low,
-            usdinr_high: data.data.usdinr_high ?? prev.usdinr_high,
-            usdinr_low: data.data.usdinr_low ?? prev.usdinr_low,
-          }));
+          pendingPrices.current = data.data;
         } else if (data.type === "alert_triggered") {
           const a = data.data;
           const direction = a.condition === "above" ? "📈" : "📉";
@@ -114,7 +104,52 @@ export function PriceProvider({ children }: { children: ReactNode }) {
     };
 
     connect();
-    return () => { clearTimeout(reconnectTimer); if (ws) ws.close(); };
+
+    // On mobile, the WS goes stale when backgrounded (may still show OPEN but receives nothing).
+    // Force-close and immediately reconnect whenever the page becomes visible again.
+    const reconnectNow = () => {
+      clearTimeout(reconnectTimer);
+      attempt = 0;
+      if (ws) {
+        ws.onclose = null;  // prevent the backoff handler from firing
+        ws.onerror = null;
+        ws.close();
+      }
+      connect();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") reconnectNow();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", reconnectNow);
+
+    const flushInterval = setInterval(() => {
+      if (pendingPrices.current) {
+        const d = pendingPrices.current;
+        pendingPrices.current = null;
+        setPrices(prev => ({
+          gold:        d.gold        ?? prev.gold,
+          silver:      d.silver      ?? prev.silver,
+          usdinr:      d.usdinr      ?? prev.usdinr,
+          gold_high:   d.gold_high   ?? prev.gold_high,
+          gold_low:    d.gold_low    ?? prev.gold_low,
+          silver_high: d.silver_high ?? prev.silver_high,
+          silver_low:  d.silver_low  ?? prev.silver_low,
+          usdinr_high: d.usdinr_high ?? prev.usdinr_high,
+          usdinr_low:  d.usdinr_low  ?? prev.usdinr_low,
+        }));
+      }
+    }, 500);
+
+    return () => {
+      clearTimeout(reconnectTimer);
+      clearInterval(flushInterval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", reconnectNow);
+      if (ws) ws.close();
+    };
   }, []);
 
   return (

@@ -117,26 +117,8 @@ export default function AlertsPage() {
     fetchAlerts();
   }, [latestAlert]);
 
-  const GoldIcon = () => (
-    <div className="w-10 h-10 rounded-full bg-yellow-50 border border-yellow-200 flex items-center justify-center">
-      <svg className="w-5 h-5 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
-        <circle cx="12" cy="12" r="5" />
-        <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-      </svg>
-    </div>
-  );
-
-  const SilverIcon = () => (
-    <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center">
-      <svg className="w-5 h-5 text-slate-400" fill="currentColor" viewBox="0 0 24 24">
-        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-      </svg>
-    </div>
-  );
-
   return (
     <div className="flex flex-col gap-4">
-      {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white truncate">
@@ -169,7 +151,6 @@ export default function AlertsPage() {
         </button>
       </div>
 
-      {/* Toast */}
       {toastMessage && (
         <div className="fixed top-4 right-4 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 border-l-4 border-l-indigo-500 p-4 rounded-lg shadow-lg flex items-center gap-3">
@@ -183,7 +164,6 @@ export default function AlertsPage() {
         </div>
       )}
 
-      {/* Alert Form */}
       {(showForm || editingAlert) && (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-xl shadow-sm max-w-md animate-in fade-in slide-in-from-top-4 duration-300">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -198,7 +178,6 @@ export default function AlertsPage() {
         </div>
       )}
 
-      {/* Notification Preferences */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm">
         <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
           <svg className="w-5 h-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -250,7 +229,6 @@ export default function AlertsPage() {
         </div>
       </div>
 
-      {/* Bulk Actions */}
       {alerts.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
           <button
@@ -283,7 +261,6 @@ export default function AlertsPage() {
         </div>
       )}
 
-      {/* Alert List */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm">
         {alerts.length === 0 ? (
           <div className="p-12 flex flex-col items-center text-center">
@@ -300,7 +277,20 @@ export default function AlertsPage() {
             {alerts.map(alert => (
               <li key={alert.id} className="px-4 py-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                 <div className="flex items-center gap-3 min-w-0">
-                  {alert.asset === "Gold" ? <GoldIcon /> : <SilverIcon />}
+                  {alert.asset === "Gold" ? (
+                    <div className="w-10 h-10 rounded-full bg-yellow-50 border border-yellow-200 flex items-center justify-center shrink-0">
+                      <svg className="w-5 h-5 text-yellow-500" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="12" cy="12" r="5" />
+                        <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+                      </svg>
+                    </div>
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
+                      <svg className="w-5 h-5 text-slate-400" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                      </svg>
+                    </div>
+                  )}
                   <div className="min-w-0">
                     {alert.name && (
                       <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium mb-0.5 truncate">{alert.name}</p>

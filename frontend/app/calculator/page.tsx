@@ -21,7 +21,6 @@ export default function Calculator() {
   const [goldPrice, setGoldPrice] = useState<number | null>(null);
   const [silverPrice, setSilverPrice] = useState<number | null>(null);
 
-  // Fetch live prices
   const fetchPrices = async () => {
     try {
       const defaultHost =
@@ -34,7 +33,6 @@ export default function Calculator() {
       if (res.ok) {
         const data = await res.json();
         setPrices(data);
-        // Auto-fill inputs with fetched prices
         if (data.gold) setGoldSpot(data.gold);
         if (data.silver) setSilverSpot(data.silver);
         if (data.usdinr) setUsdInr(data.usdinr);
@@ -58,13 +56,11 @@ export default function Calculator() {
     const duty = Number(importDuty) || 0;
 
     if (gold > 0 && usd > 0) {
-      // gold per oz → per gram → per 10g
       const goldPer10g = (gold / TROY_OZ_TO_GRAM) * 10 * usd * (1 + duty / 100);
       setGoldPrice(Number(goldPer10g.toFixed(2)));
     }
 
     if (silver > 0 && usd > 0) {
-      // silver per oz → per kg
       const silverPerKg = silver * KG_IN_TROY_OZ * usd * (1 + duty / 100);
       setSilverPrice(Number(silverPerKg.toFixed(2)));
     }
@@ -76,7 +72,6 @@ export default function Calculator() {
 
   return (
     <div className="flex-1 overflow-auto">
-      {/* Calculator Section */}
       <div className="max-w-2xl mx-auto p-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
@@ -84,7 +79,6 @@ export default function Calculator() {
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            {/* Gold Spot Input */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Gold Spot Price (USD/oz)
@@ -108,7 +102,6 @@ export default function Calculator() {
               )}
             </div>
 
-            {/* Silver Spot Input */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Silver Spot Price (USD/oz)
@@ -132,7 +125,6 @@ export default function Calculator() {
               )}
             </div>
 
-            {/* USD/INR Exchange Rate */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 USD/INR Exchange Rate
@@ -156,7 +148,6 @@ export default function Calculator() {
               )}
             </div>
 
-            {/* Import Duty */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Import Duty (%)
@@ -177,7 +168,6 @@ export default function Calculator() {
             </div>
           </div>
 
-          {/* Output Results */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-5 shadow-sm">
               <p className="text-sm text-gray-500 dark:text-gray-400">Gold Price per 10g (INR)</p>
@@ -193,7 +183,6 @@ export default function Calculator() {
             </div>
           </div>
 
-          {/* Refresh Button */}
           <button
             onClick={fetchPrices}
             className="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"

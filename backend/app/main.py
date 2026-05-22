@@ -21,11 +21,9 @@ limiter = Limiter(key_func=get_remote_address)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup logic
     manager.loop = asyncio.get_running_loop()
     start_scheduler()
     yield
-    # Shutdown logic (optional)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -74,7 +72,7 @@ app.include_router(
 
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to Websocket Testing"}
+    return {"message": "Bullion Market Alerts API"}
 
 @app.get(f"{settings.API_V1_STR}/health")
 def health_check():

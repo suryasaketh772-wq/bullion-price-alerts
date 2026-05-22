@@ -16,12 +16,6 @@ class ToggleAllRequest(BaseModel):
 def get_alert_history(db: Session = Depends(get_db)):
     return db.query(AlertHistory).order_by(AlertHistory.triggered_at.desc()).limit(200).all()
 
-@router.delete("/history")
-def delete_alert_history(db: Session = Depends(get_db)):
-    db.query(AlertHistory).delete(synchronize_session=False)
-    db.commit()
-    return {"message": "Alert history cleared"}
-
 @router.delete("/history/clear")
 def clear_alert_history(db: Session = Depends(get_db)):
     db.query(AlertHistory).delete(synchronize_session=False)

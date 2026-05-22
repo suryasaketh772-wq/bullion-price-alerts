@@ -35,7 +35,7 @@ export default function Home() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchAlerts();
+    await Promise.all([fetchAlerts(), new Promise(r => setTimeout(r, 500))]);
     setRefreshing(false);
   };
 
@@ -48,7 +48,6 @@ export default function Home() {
     fetchAlerts();
   }, []);
 
-  // React to alert events from the shared WebSocket in PriceContext
   useEffect(() => {
     if (!latestAlert) return;
     const direction = latestAlert.condition === "above" ? "📈" : "📉";
@@ -96,7 +95,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-4 right-4 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="bg-white dark:bg-gray-800 border-l-4 border-indigo-500 p-4 rounded shadow-lg flex items-center gap-3">
@@ -110,7 +108,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm transition-all hover:shadow-md">
           <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Gold (GC=F)</h3>
@@ -154,7 +151,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* INR Conversion Row */}
       {prices.gold && prices.silver && prices.usdinr && (() => {
         const TROY_OZ_TO_GRAM = 31.1035;
         const KG_IN_TROY_OZ = 32.1507;

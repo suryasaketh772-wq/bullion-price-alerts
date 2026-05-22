@@ -4,7 +4,7 @@ from pydantic import AnyHttpUrl, validator
 
 class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
-    PROJECT_NAME: str = "Websocket Testing"
+    PROJECT_NAME: str = "Bullion Market Alerts"
     
     # BACKEND_CORS_ORIGINS is a JSON-formatted list of origins
     # e.g: '["http://localhost", "http://localhost:4200", "http://localhost:3000"]'
