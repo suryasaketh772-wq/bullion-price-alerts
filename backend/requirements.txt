@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+gunicorn
+sqlalchemy
+psycopg2-binary
+alembic
+apscheduler
+python-dotenv
+pydantic-settings
+slowapi
+redis
+tenacity
+requests
