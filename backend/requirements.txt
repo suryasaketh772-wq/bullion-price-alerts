@@ -7,6 +7,5 @@ alembic
 python-dotenv
 pydantic-settings
 slowapi
-redis
 tenacity
 requests

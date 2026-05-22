@@ -15,13 +15,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-EXPOSE 8080
+EXPOSE 8000
 
-# Run migrations then start the server
-# Cloud Run injects PORT=8080; gunicorn + uvicorn workers handle async + WebSockets
 CMD alembic upgrade head && \
     gunicorn app.main:app \
       --workers 1 \
       --worker-class uvicorn.workers.UvicornWorker \
-      --bind 0.0.0.0:${PORT:-8080} \
+      --bind 0.0.0.0:8000 \
       --timeout 120

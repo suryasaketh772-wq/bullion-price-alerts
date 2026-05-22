@@ -11,3 +11,6 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+
+# Do not ignore .env.example
+!.env.example

@@ -19,7 +19,6 @@ class Settings(BaseSettings):
         raise ValueError(v)
 
     DATABASE_URL: str
-    REDIS_URL: str = "redis://localhost:6379/0"
 
     class Config:
         case_sensitive = True
