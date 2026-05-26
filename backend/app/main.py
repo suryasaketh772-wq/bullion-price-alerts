@@ -2,7 +2,7 @@ import logging
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -16,8 +16,10 @@ from app.services.websocket_manager import manager
 import asyncio
 from app.scheduler.tasks import start_scheduler
 from app.models import *
-
-limiter = Limiter(key_func=get_remote_address)
+from app.limiter import limiter
+from app.services.price_cache import price_cache
+from app.schemas import PriceResponse
+from app.api.websockets import handle_websocket_connection
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -70,10 +72,43 @@ app.include_router(
     tags=["websockets"]
 )
 
+@app.websocket("/ws/prices")
+async def websocket_root_prices(websocket: WebSocket):
+    """
+    Root WebSocket Endpoint: /ws/prices
+    Provides highly efficient, low-latency realtime bullion price streaming.
+    """
+    await handle_websocket_connection(websocket)
+
+
 @app.get("/")
 def read_root():
     return {"message": "Bullion Market Alerts API"}
 
+@app.get("/health")
 @app.get(f"{settings.API_V1_STR}/health")
-def health_check():
-    return {"status": "ok"}
+@limiter.limit("60/minute")
+def health_check(request: Request):
+    return {"status": "ok", "service": "bullion-alerts-realtime-infrastructure"}
+
+@app.get("/api/latest", response_model=PriceResponse)
+@app.get(f"{settings.API_V1_STR}/prices/latest", response_model=PriceResponse)
+@limiter.limit("60/minute")
+def get_latest_prices(request: Request):
+    """
+    REST Backup Endpoint: Returns the latest cached prices in memory instantly.
+    Protected with rate limiting.
+    """
+    latest = price_cache.get_latest()
+    return PriceResponse(
+        gold=latest.get("gold"),
+        silver=latest.get("silver"),
+        gold_high=latest.get("gold_high"),
+        gold_low=latest.get("gold_low"),
+        silver_high=latest.get("silver_high"),
+        silver_low=latest.get("silver_low"),
+        usdinr=latest.get("usdinr"),
+        usdinr_high=latest.get("usdinr_high"),
+        usdinr_low=latest.get("usdinr_low")
+    )
+

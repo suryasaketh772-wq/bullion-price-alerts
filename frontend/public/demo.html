@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realtime Bullion Price Dashboard</title>
+    <!-- Google Fonts for premium typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #030712;
+            --card-bg: rgba(17, 24, 39, 0.7);
+            --card-border: rgba(212, 175, 55, 0.15);
+            --gold: #d4af37;
+            --silver: #cbd5e1;
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --green: #10b981;
+            --red: #ef4444;
+            --orange: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Outfit', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem 1rem;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(212, 175, 55, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(120, 119, 198, 0.05) 0%, transparent 40%);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .logo-dot {
+            width: 10px;
+            height: 10px;
+            background-color: var(--gold);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--gold);
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: -0.05em;
+            background: linear-gradient(to right, #ffffff 30%, var(--gold) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-top: 0.5rem;
+            font-weight: 300;
+        }
+
+        /* Status Badge */
+        .status-container {
+            margin-top: 1rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 0.4rem 1rem;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--text-muted);
+            position: relative;
+        }
+
+        .status-indicator.connected {
+            background-color: var(--green);
+            box-shadow: 0 0 8px var(--green);
+        }
+
+        .status-indicator.connected::after {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background-color: var(--green);
+            animation: pulse 1.8s infinite ease-in-out;
+            left: 0;
+            top: 0;
+        }
+
+        .status-indicator.connecting {
+            background-color: var(--orange);
+            animation: pulse 1.2s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(2.5); opacity: 0; }
+        }
+
+        /* Cards Grid */
+        .grid {
+            display: grid;
+            grid-template-cols: 1fr;
+            gap: 1.5rem;
+            max-width: 1200px;
+            width: 100%;
+            margin-bottom: 3rem;
+        }
+
+        @media (min-width: 768px) {
+            .grid {
+                grid-template-cols: repeat(3, 1fr);
+            }
+        }
+
+        /* Price Cards */
+        .card {
+            background: var(--card-bg);
+            border-radius: 24px;
+            border: 1px solid var(--card-border);
+            padding: 2rem;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, transparent, var(--gold), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(212, 175, 55, 0.4);
+            box-shadow: 0 15px 35px rgba(212, 175, 55, 0.05);
+        }
+
+        .card:hover::before {
+            opacity: 1;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+
+        .asset-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+        }
+
+        .asset-badge {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            text-transform: uppercase;
+        }
+
+        .gold-badge {
+            background: rgba(212, 175, 55, 0.15);
+            color: var(--gold);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+        }
+
+        .silver-badge {
+            background: rgba(203, 213, 225, 0.1);
+            color: var(--silver);
+            border: 1px solid rgba(203, 213, 225, 0.2);
+        }
+
+        .inr-badge {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--green);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .price-display {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            transition: color 0.15s ease-in-out;
+            letter-spacing: -0.03em;
+        }
+
+        .price-display.up { color: var(--green); }
+        .price-display.down { color: var(--red); }
+
+        .metrics {
+            display: flex;
+            gap: 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            padding-top: 1.2rem;
+        }
+
+        .metric-col {
+            flex: 1;
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.2rem;
+        }
+
+        .metric-value {
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        .high-value { color: var(--green); }
+        .low-value { color: var(--red); }
+
+        /* Logger Terminal block */
+        .terminal {
+            max-width: 1200px;
+            width: 100%;
+            background: #020617;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 1.5rem;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .terminal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 0.8rem;
+        }
+
+        .terminal-title {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            letter-spacing: 0.08em;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .terminal-dot {
+            width: 6px;
+            height: 6px;
+            background-color: var(--red);
+            border-radius: 50%;
+        }
+
+        .terminal-console {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.8rem;
+            color: #38bdf8;
+            max-height: 200px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+            padding-right: 0.5rem;
+        }
+
+        .terminal-line {
+            line-height: 1.4;
+            display: flex;
+            gap: 0.8rem;
+        }
+
+        .terminal-time {
+            color: #64748b;
+            flex-shrink: 0;
+        }
+
+        .terminal-msg {
+            word-break: break-all;
+        }
+
+        /* Scrollbar custom styling */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo-area">
+            <span class="logo-dot"></span>
+            <h1>CENTRAL BULLION ENGINE</h1>
+        </div>
+        <p class="subtitle">Scalable low-latency infrastructure streaming spot prices via WebSockets</p>
+        
+        <div class="status-container">
+            <span id="status-ind" class="status-indicator"></span>
+            <span id="status-text">DISCONNECTED</span>
+        </div>
+    </header>
+
+    <div class="grid">
+        <!-- Gold Card -->
+        <div class="card">
+            <div class="card-header">
+                <span class="asset-title">GOLD SPOT</span>
+                <span class="asset-badge gold-badge">Au (GC=F)</span>
+            </div>
+            <div id="gold-price" class="price-display">---</div>
+            <div class="metrics">
+                <div class="metric-col">
+                    <div class="metric-label">Daily High</div>
+                    <div id="gold-high" class="metric-value high-value">---</div>
+                </div>
+                <div class="metric-col">
+                    <div class="metric-label">Daily Low</div>
+                    <div id="gold-low" class="metric-value low-value">---</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Silver Card -->
+        <div class="card">
+            <div class="card-header">
+                <span class="asset-title">SILVER SPOT</span>
+                <span class="asset-badge silver-badge">Ag (SI=F)</span>
+            </div>
+            <div id="silver-price" class="price-display">---</div>
+            <div class="metrics">
+                <div class="metric-col">
+                    <div class="metric-label">Daily High</div>
+                    <div id="silver-high" class="metric-value high-value">---</div>
+                </div>
+                <div class="metric-col">
+                    <div class="metric-label">Daily Low</div>
+                    <div id="silver-low" class="metric-value low-value">---</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- USDINR Card -->
+        <div class="card">
+            <div class="card-header">
+                <span class="asset-title">USD / INR</span>
+                <span class="asset-badge inr-badge">💵 currency</span>
+            </div>
+            <div id="usdinr-price" class="price-display">---</div>
+            <div class="metrics">
+                <div class="metric-col">
+                    <div class="metric-label">Daily High</div>
+                    <div id="usdinr-high" class="metric-value high-value">---</div>
+                </div>
+                <div class="metric-col">
+                    <div class="metric-label">Daily Low</div>
+                    <div id="usdinr-low" class="metric-value low-value">---</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Logger Console -->
+    <div class="terminal">
+        <div class="terminal-header">
+            <div class="terminal-title">
+                <span class="terminal-dot"></span>
+                <span>REALTIME ENGINE STREAM LOGS</span>
+            </div>
+            <span id="log-count" style="font-size: 0.75rem; color: #64748b;">0 events</span>
+        </div>
+        <div id="console" class="terminal-console">
+            <div class="terminal-line">
+                <span class="terminal-time">[SYS]</span>
+                <span class="terminal-msg" style="color: #64748b;">Console loaded. Ready to initialize WebSocket handshake...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const statusInd = document.getElementById('status-ind');
+        const statusText = document.getElementById('status-text');
+        const consoleEl = document.getElementById('console');
+        const logCountEl = document.getElementById('log-count');
+
+        const elements = {
+            gold: {
+                price: document.getElementById('gold-price'),
+                high: document.getElementById('gold-high'),
+                low: document.getElementById('gold-low'),
+                last: null
+            },
+            silver: {
+                price: document.getElementById('silver-price'),
+                high: document.getElementById('silver-high'),
+                low: document.getElementById('silver-low'),
+                last: null
+            },
+            usdinr: {
+                price: document.getElementById('usdinr-price'),
+                high: document.getElementById('usdinr-high'),
+                low: document.getElementById('usdinr-low'),
+                last: null
+            }
+        };
+
+        let ws;
+        let attempt = 0;
+        let logCounter = 0;
+
+        function log(message, type = 'SYS') {
+            logCounter++;
+            logCountEl.textContent = `${logCounter} events`;
+
+            const line = document.createElement('div');
+            line.className = 'terminal-line';
+            
+            const timeStr = new Date().toLocaleTimeString();
+            
+            let color = '#38bdf8';
+            if (type === 'ERR') color = '#ef4444';
+            if (type === 'OK') color = '#10b981';
+            if (type === 'SYS') color = '#64748b';
+
+            line.innerHTML = `
+                <span class="terminal-time">[${timeStr}]</span>
+                <span class="terminal-msg" style="color: ${color}">${message}</span>
+            `;
+            
+            consoleEl.appendChild(line);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+
+            // Cap logs
+            if (consoleEl.children.length > 50) {
+                consoleEl.removeChild(consoleEl.firstChild);
+            }
+        }
+
+        function formatCurrency(val, decimals = 2, prefix = '$') {
+            if (val === null || val === undefined) return '---';
+            return prefix + Number(val).toLocaleString('en-US', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            });
+        }
+
+        function updatePrice(key, current, high, low, prefix = '$', decimals = 2) {
+            const el = elements[key];
+            const oldVal = el.last;
+            el.last = current;
+
+            if (current !== null) {
+                el.price.textContent = formatCurrency(current, decimals, prefix);
+                
+                // Color ticker flash on rate shifts
+                if (oldVal !== null) {
+                    if (current > oldVal) {
+                        el.price.className = 'price-display up';
+                        setTimeout(() => el.price.className = 'price-display', 1000);
+                    } else if (current < oldVal) {
+                        el.price.className = 'price-display down';
+                        setTimeout(() => el.price.className = 'price-display', 1000);
+                    }
+                }
+            }
+            
+            if (high !== undefined && high !== null) el.high.textContent = formatCurrency(high, decimals, prefix);
+            if (low !== undefined && low !== null) el.low.textContent = formatCurrency(low, decimals, prefix);
+        }
+
+        function connect() {
+            const host = window.location.hostname || 'localhost';
+            // Connect to root-level ws/prices endpoint
+            const wsUrl = `ws://${host}:8000/ws/prices`;
+
+            log(`Initiating WebSocket handshake with ${wsUrl}...`);
+            statusInd.className = 'status-indicator connecting';
+            statusText.textContent = 'CONNECTING';
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                attempt = 0;
+                statusInd.className = 'status-indicator connected';
+                statusText.textContent = 'LIVE';
+                log('WebSocket handshake completed successfully!', 'OK');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const payload = JSON.parse(event.data);
+                    
+                    if (payload.type === 'price_update') {
+                        const d = payload.data;
+                        log(`Stream tick received: Gold=$${d.gold?.toFixed(1)} Silver=$${d.silver?.toFixed(2)} USDINR=₹${d.usdinr?.toFixed(2)}`, 'OK');
+                        
+                        updatePrice('gold', d.gold, d.gold_high, d.gold_low, '$', 2);
+                        updatePrice('silver', d.silver, d.silver_high, d.silver_low, '$', 2);
+                        updatePrice('usdinr', d.usdinr, d.usdinr_high, d.usdinr_low, '₹', 2);
+                    } else {
+                        log(`Received event type: ${payload.type} - Data: ${JSON.stringify(payload.data)}`);
+                    }
+                } catch (e) {
+                    log(`Failed parsing message: ${event.data}`, 'ERR');
+                }
+            };
+
+            ws.onclose = (event) => {
+                statusInd.className = 'status-indicator';
+                statusText.textContent = 'DISCONNECTED';
+                
+                const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
+                log(`Connection lost (code: ${event.code}). Attempting reconnection in ${(delay/1000).toFixed(0)}s...`, 'ERR');
+                
+                setTimeout(() => {
+                    attempt++;
+                    connect();
+                }, delay);
+            };
+
+            ws.onerror = (err) => {
+                log('WebSocket error occurred', 'ERR');
+                ws.close();
+            };
+        }
+
+        // Handle offline/online browser visibility reconnects
+        window.addEventListener('online', () => {
+            log('Browser went online. Re-triggering connection...');
+            if (ws) ws.close();
+        });
+
+        // Initialize connection
+        connect();
+    </script>
+</body>
+</html>

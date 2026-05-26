@@ -1,31 +1,26 @@
 from fastapi import APIRouter
-from app.services.price_service import fetch_dpgold_prices
 from app.schemas import PriceResponse
+from app.services.price_cache import price_cache
 
 router = APIRouter()
 
 @router.get("", response_model=PriceResponse)
 def get_prices():
     """
-    Fetches the latest live prices for Gold and Silver along with today's high and low.
+    Returns the latest cached live prices for Gold, Silver, and USDINR
+    along with their respective daily high and low metrics.
+    Satisfies "Clients NEVER call API Server directly" and guarantees low latency.
     """
-    try:
-        prices = fetch_dpgold_prices()
-        gold_data = prices.get("gold", {})
-        silver_data = prices.get("silver", {})
-        
-        usdinr_data = prices.get("usdinr", {})
-        
-        return PriceResponse(
-            gold=gold_data.get("price"),
-            silver=silver_data.get("price"),
-            gold_high=gold_data.get("high"),
-            gold_low=gold_data.get("low"),
-            silver_high=silver_data.get("high"),
-            silver_low=silver_data.get("low"),
-            usdinr=usdinr_data.get("price"),
-            usdinr_high=usdinr_data.get("high"),
-            usdinr_low=usdinr_data.get("low")
-        )
-    except Exception as e:
-        return PriceResponse(gold=None, silver=None)
+    latest = price_cache.get_latest()
+    return PriceResponse(
+        gold=latest.get("gold"),
+        silver=latest.get("silver"),
+        gold_high=latest.get("gold_high"),
+        gold_low=latest.get("gold_low"),
+        silver_high=latest.get("silver_high"),
+        silver_low=latest.get("silver_low"),
+        usdinr=latest.get("usdinr"),
+        usdinr_high=latest.get("usdinr_high"),
+        usdinr_low=latest.get("usdinr_low")
+    )
+

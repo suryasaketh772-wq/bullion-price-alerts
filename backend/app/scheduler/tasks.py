@@ -2,46 +2,24 @@ import time
 import threading
 import logging
 import asyncio
+import os
+import json
 import requests
-import urllib3
 from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.db.database import SessionLocal
 from app.services.alert_service import evaluate_alerts
 from app.services.websocket_manager import manager
+from app.services.price_cache import price_cache
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logger = logging.getLogger(__name__)
 
-DPGOLD_URL = (
-    "https://statewisebcast.dpgold.in:7768"
-    "/VOTSBroadcastStreaming/Services/xml/GetLiveRateByTemplateID/dpgold"
-)
+# Configurable endpoints for connecting to the local api_server backend
+API_SERVER_WS_URL = os.environ.get("API_SERVER_WS_URL", "ws://3.93.145.57/ws/prices")
+API_SERVER_REST_URL = os.environ.get("API_SERVER_REST_URL", "http://3.93.145.57/api/latest")
 
 _last_key: tuple = (None, None)  # (gold_price, silver_price) — skip duplicate broadcasts
-
-
-def _parse_line(line: str) -> tuple[str, dict] | None:
-    """Parse one tab-delimited price line. Returns (name_key, data) or None."""
-    parts = line.split("\t")
-    if len(parts) < 6:
-        return None
-    name = parts[1].strip().upper()
-    try:
-        price = float(parts[2])
-        high = float(parts[4]) if parts[4].strip() else None
-        low = float(parts[5]) if parts[5].strip() else None
-    except (ValueError, IndexError):
-        return None
-
-    if name == "GOLD SPOT":
-        return "gold", {"price": price, "high": high, "low": low}
-    if name == "SILVER SPOT":
-        return "silver", {"price": price, "high": high, "low": low}
-    if name == "USDINR":
-        return "usdinr", {"price": price, "high": high, "low": low}
-    return None
 
 
 def _broadcast_and_check(prices: dict):
@@ -56,7 +34,7 @@ def _broadcast_and_check(prices: dict):
     if not gold_price and not silver_price:
         return
 
-    # Skip if nothing changed
+    # Dedup broadcasts to save bandwidth, but always keep PriceCache updated
     key = (gold_price, silver_price)
     if key == _last_key:
         return
@@ -64,7 +42,7 @@ def _broadcast_and_check(prices: dict):
 
     logger.info(f"Price update → Gold=${gold_price}  Silver=${silver_price}  USD/INR={usdinr_data.get('price')}")
 
-    # Evaluate alerts
+    # Evaluate alerts in DB
     db: Session = SessionLocal()
     triggered = []
     try:
@@ -81,12 +59,12 @@ def _broadcast_and_check(prices: dict):
     if not manager.loop:
         return
 
-    # Broadcast prices
+    # Broadcast prices via websocket to the Next.js app clients
     try:
         asyncio.run_coroutine_threadsafe(
             manager.broadcast_prices(
-                gold_price or 0,
-                silver_price or 0,
+                gold_price or 0.0,
+                silver_price or 0.0,
                 gold_data.get("high"),
                 gold_data.get("low"),
                 silver_data.get("high"),
@@ -104,47 +82,127 @@ def _broadcast_and_check(prices: dict):
         logger.error(f"Broadcast error: {e}")
 
 
-def _stream_worker():
+def _process_api_prices(data: dict):
     """
-    Polls the dpgold endpoint at the same rate as dpgold.com (every ~500 ms).
-    The endpoint returns a snapshot in ~90 ms and closes; we re-fetch immediately
-    without sleeping so the effective rate is the HTTP round-trip time (~90–150 ms),
-    which is 3-5× faster than dpgold.com's own 500 ms frontend interval.
-    Only broadcasts when price values actually change (dedup via _last_key).
-    Errors use exponential backoff capped at 30 s.
+    Process raw pricing data dictionary from the API Server and updates cache.
     """
-    error_backoff = 1.0
+    try:
+        pending = {
+            "gold": {
+                "price": data.get("gold_spot") or data.get("gold"),
+                "high": data.get("gold_high"),
+                "low": data.get("gold_low")
+            },
+            "silver": {
+                "price": data.get("silver_spot") or data.get("silver"),
+                "high": data.get("silver_high"),
+                "low": data.get("silver_low")
+            },
+            "usdinr": {
+                "price": data.get("usd_inr") or data.get("usdinr"),
+                "high": data.get("usdinr_high") or data.get("usd_inr"),
+                "low": data.get("usdinr_low") or data.get("usd_inr")
+            }
+        }
+        
+        if pending["gold"]["price"] and pending["silver"]["price"]:
+            # Update centralized price cache
+            price_cache.update(pending)
+            
+            # Check DB alerts and broadcast price updates
+            _broadcast_and_check(pending)
+    except Exception as e:
+        logger.error(f"Error processing pricing update: {e}")
+
+
+async def async_stream_worker():
+    """
+    Resilient WebSocket client listener that connects to the local api_server backend.
+    Degrades gracefully to REST fallback polling if WebSocket is disconnected.
+    """
+    import websockets
+    
+    ws_connected = False
+    reconnect_attempts = 0
+    reconnect_delay = 1.0
+    fallback_task = None
+    
+    async def run_fallback_polling():
+        nonlocal ws_connected
+        logger.info("REST fallback polling started (runs every 5 seconds).")
+        while not ws_connected:
+            try:
+                # Run synchronous requests.get in an executor thread to avoid blocking the loop
+                response = await asyncio.to_thread(
+                    requests.get, API_SERVER_REST_URL, timeout=5
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    logger.info("Fetched live rates via fallback REST route.")
+                    _process_api_prices(data)
+                else:
+                    logger.error(f"REST fallback HTTP error {response.status_code}")
+            except Exception as e:
+                logger.error(f"REST fallback poll failed: {e}")
+            await asyncio.sleep(5)
+
     while True:
         try:
-            with requests.get(
-                DPGOLD_URL, stream=True, timeout=(5, 10), verify=False
-            ) as resp:
-                resp.raise_for_status()
-                error_backoff = 1.0
-
-                pending: dict = {}
-                for raw in resp.iter_lines(decode_unicode=True):
-                    if not raw:
+            logger.info(f"Attempting to connect to API Server WebSocket: {API_SERVER_WS_URL}")
+            async with websockets.connect(API_SERVER_WS_URL) as websocket:
+                ws_connected = True
+                reconnect_attempts = 0
+                reconnect_delay = 1.0
+                logger.info("Successfully connected to API Server WebSocket!")
+                
+                # Cancel fallback task if running
+                if fallback_task and not fallback_task.done():
+                    fallback_task.cancel()
+                    logger.info("Deactivated REST fallback polling. Real-time WebSockets active.")
+                
+                while True:
+                    msg = await websocket.recv()
+                    # Keepalive check
+                    if msg == "ping":
+                        await websocket.send("pong")
                         continue
-                    result = _parse_line(raw.strip())
-                    if result is None:
-                        continue
-                    k, data = result
-                    pending[k] = data
-
-                    if "gold" in pending and "silver" in pending and "usdinr" in pending:
-                        _broadcast_and_check(pending.copy())
-                        pending = {}
-
-            # No sleep — reconnect immediately for maximum refresh rate
-
+                    
+                    try:
+                        payload = json.loads(msg)
+                        # Extract data either from root or 'data' subkey depending on format
+                        data = payload.get("data") if payload.get("type") == "price_update" else payload
+                        if not data:
+                            data = payload
+                        _process_api_prices(data)
+                    except Exception as e:
+                        logger.error(f"Error parsing WebSocket message: {e}")
+                        
         except Exception as e:
-            logger.error(f"Stream error ({e}), retrying in {error_backoff:.0f}s…")
-            time.sleep(error_backoff)
-            error_backoff = min(error_backoff * 2, 30)
+            ws_connected = False
+            logger.warning(f"WebSocket disconnected or failed to connect ({e}).")
+            
+            # Start REST fallback polling in background if not already running
+            if not fallback_task or fallback_task.done():
+                fallback_task = asyncio.create_task(run_fallback_polling())
+            
+            # Reconnect delay with exponential backoff up to 30s
+            logger.info(f"Retrying WebSocket connection in {reconnect_delay:.1f}s...")
+            await asyncio.sleep(reconnect_delay)
+            reconnect_attempts += 1
+            reconnect_delay = min(reconnect_delay * 2, 30.0)
+
+
+def _stream_worker():
+    """
+    Main thread entry point that runs the async stream worker loop.
+    """
+    logger.info("Initializing API Server WebSocket pricing listener worker...")
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(async_stream_worker())
 
 
 def start_scheduler():
     t = threading.Thread(target=_stream_worker, daemon=True, name="price-stream")
     t.start()
-    logger.info("Persistent price-stream worker started.")
+    logger.info("Centralized API Server price listener thread started.")

@@ -76,7 +76,7 @@ export function PriceProvider({ children }: { children: ReactNode }) {
     const connect = () => {
       const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
       const protocol = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || `${protocol}//${host}:8000/api/v1/ws`;
+      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || `${protocol}//${host}:8000/ws/prices`;
       ws = new WebSocket(wsUrl);
 
       ws.onopen = () => { setIsConnected(true); attempt = 0; };
