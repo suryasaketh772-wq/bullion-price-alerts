@@ -14,14 +14,26 @@ interface Alert {
 }
 
 export default function Home() {
-  const { prices, isConnected, latestAlert } = usePrices();
+  const { prices, isConnected, connectionState, isPaused, latestAlert } = usePrices();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const getBaseUrl = () => {
     const defaultHost = typeof window !== "undefined" ? window.location.hostname : "localhost";
-    return process.env.NEXT_PUBLIC_API_URL || `http://${defaultHost}:8000/api/v1`;
+    
+    let baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+    
+    // Automatically translate "localhost" in build-time environment variable to current browser host
+    if (baseUrl && baseUrl.includes("localhost") && defaultHost !== "localhost" && defaultHost !== "127.0.0.1") {
+      baseUrl = baseUrl.replace("localhost", defaultHost);
+    }
+    
+    if (!baseUrl) {
+      baseUrl = `http://${defaultHost}:8000/api/v1`;
+    }
+    
+    return baseUrl;
   };
 
   const fetchAlerts = async () => {
@@ -61,17 +73,34 @@ export default function Home() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h2>
-          {isConnected ? (
-            <span className="flex items-center gap-1.5 text-xs font-medium text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400 px-2.5 py-1 rounded-full border border-green-200 dark:border-green-800">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+          {connectionState === "ONLINE" ? (
+            isPaused ? (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-800">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                </span>
+                STREAM PAUSED
               </span>
-              LIVE
+            ) : (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400 px-2.5 py-1 rounded-full border border-green-200 dark:border-green-800">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
+                LIVE
+              </span>
+            )
+          ) : connectionState === "CONNECTING" ? (
+            <span className="flex items-center gap-1.5 text-xs font-medium text-blue-600 bg-blue-100/10 dark:bg-blue-900/30 dark:text-blue-400 px-2.5 py-1 rounded-full border border-blue-200 dark:border-blue-800 animate-pulse">
+              CONNECTING
             </span>
           ) : (
-            <span className="text-xs font-medium text-gray-500 bg-gray-100 dark:bg-gray-800 px-2.5 py-1 rounded-full border border-gray-200 dark:border-gray-700">
-              Connecting...
+            <span className="flex items-center gap-1.5 text-xs font-medium text-red-600 bg-red-100 dark:bg-red-900/20 dark:text-red-400 px-2.5 py-1 rounded-full border border-red-200 dark:border-red-800">
+              <span className="relative flex h-2 w-2">
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              </span>
+              OFFLINE
             </span>
           )}
         </div>

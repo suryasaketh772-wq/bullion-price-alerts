@@ -15,7 +15,7 @@ interface Alert {
 }
 
 export default function AlertsPage() {
-  const { isConnected, latestAlert } = usePrices();
+  const { connectionState, isPaused, latestAlert } = usePrices();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingAlert, setEditingAlert] = useState<Alert | null>(null);
@@ -25,7 +25,19 @@ export default function AlertsPage() {
 
   const getBaseUrl = () => {
     const defaultHost = typeof window !== "undefined" ? window.location.hostname : "localhost";
-    return process.env.NEXT_PUBLIC_API_URL || `http://${defaultHost}:8000/api/v1`;
+    
+    let baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+    
+    // Automatically translate "localhost" in build-time environment variable to current browser host
+    if (baseUrl && baseUrl.includes("localhost") && defaultHost !== "localhost" && defaultHost !== "127.0.0.1") {
+      baseUrl = baseUrl.replace("localhost", defaultHost);
+    }
+    
+    if (!baseUrl) {
+      baseUrl = `http://${defaultHost}:8000/api/v1`;
+    }
+    
+    return baseUrl;
   };
 
   useEffect(() => {
@@ -124,17 +136,34 @@ export default function AlertsPage() {
           <h2 className="text-lg font-bold text-gray-900 dark:text-white truncate">
             Alerts ({alerts.length}/20)
           </h2>
-          {isConnected ? (
-            <span className="flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 rounded-full border border-green-200 dark:border-green-800 shrink-0">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+          {connectionState === "ONLINE" ? (
+            isPaused ? (
+              <span className="flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 rounded-full border border-amber-200 dark:border-amber-800 shrink-0">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-pulse absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
+                </span>
+                STREAM PAUSED
               </span>
-              LIVE
+            ) : (
+              <span className="flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 rounded-full border border-green-200 dark:border-green-800 shrink-0">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+                </span>
+                LIVE
+              </span>
+            )
+          ) : connectionState === "CONNECTING" ? (
+            <span className="text-xs font-medium text-blue-600 bg-blue-100/10 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-full border border-blue-200 dark:border-blue-800 shrink-0 animate-pulse">
+              Connecting...
             </span>
           ) : (
-            <span className="text-xs font-medium text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full border border-gray-200 dark:border-gray-700 shrink-0">
-              Connecting...
+            <span className="flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 dark:bg-red-900/30 dark:text-red-400 px-2 py-0.5 rounded-full border border-red-200 dark:border-red-800 shrink-0">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-red-500"></span>
+              </span>
+              OFFLINE
             </span>
           )}
         </div>

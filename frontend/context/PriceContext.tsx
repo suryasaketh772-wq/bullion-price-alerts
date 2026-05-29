@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { fireAlertNotification } from "@/services/alertSound";
-import { WebSocketManager } from "@/services/websocket";
+import { WebSocketManager, WebSocketState } from "@/services/websocket";
 
 export interface Prices {
   gold: number | null;
@@ -28,6 +28,8 @@ export interface AlertEvent {
 interface PriceContextType {
   prices: Prices;
   isConnected: boolean;
+  connectionState: WebSocketState;
+  isPaused: boolean;
   latestAlert: AlertEvent | null;
 }
 
@@ -41,6 +43,8 @@ export function PriceProvider({ children }: { children: ReactNode }) {
     usdinr: null, usdinr_high: null, usdinr_low: null,
   });
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionState, setConnectionState] = useState<WebSocketState>("OFFLINE");
+  const [isPaused, setIsPaused] = useState(false);
   const [latestAlert, setLatestAlert] = useState<AlertEvent | null>(null);
 
   const notifEnabledRef = useRef(true);
@@ -63,7 +67,17 @@ export function PriceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const defaultHost = typeof window !== "undefined" ? window.location.hostname : "localhost";
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || `http://${defaultHost}:8000/api/v1`;
+    
+    let baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+    
+    // Automatically translate "localhost" in build-time environment variable to current browser host
+    if (baseUrl && baseUrl.includes("localhost") && defaultHost !== "localhost" && defaultHost !== "127.0.0.1") {
+      baseUrl = baseUrl.replace("localhost", defaultHost);
+    }
+    
+    if (!baseUrl) {
+      baseUrl = `http://${defaultHost}:8000/api/v1`;
+    }
 
     fetch(`${baseUrl}/prices?t=${Date.now()}`, { cache: "no-store" })
       .then(r => r.ok ? r.json() : null)
@@ -75,6 +89,12 @@ export function PriceProvider({ children }: { children: ReactNode }) {
     // Subscribe to connection state changes
     const unsubState = wsManager.subscribeToState((state) => {
       setIsConnected(state === "ONLINE");
+      setConnectionState(state);
+    });
+
+    // Subscribe to stream pause/resume events
+    const unsubPause = wsManager.subscribeToPause((paused) => {
+      setIsPaused(paused);
     });
 
     // Subscribe to realtime price streams
@@ -113,6 +133,7 @@ export function PriceProvider({ children }: { children: ReactNode }) {
 
     return () => {
       unsubState();
+      unsubPause();
       unsubPrices();
       unsubAlerts();
       clearInterval(flushInterval);
@@ -121,7 +142,7 @@ export function PriceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <PriceContext.Provider value={{ prices, isConnected, latestAlert }}>
+    <PriceContext.Provider value={{ prices, isConnected, connectionState, isPaused, latestAlert }}>
       {children}
     </PriceContext.Provider>
   );

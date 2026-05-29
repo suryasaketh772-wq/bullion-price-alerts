@@ -1,6 +1,6 @@
 "use client";
 
-export type WebSocketState = "CONNECTING" | "ONLINE" | "OFFLINE" | "RECONNECTING";
+export type WebSocketState = "CONNECTING" | "ONLINE" | "OFFLINE";
 
 export interface PricesPayload {
   gold: number | null;
@@ -47,6 +47,7 @@ export class WebSocketManager {
   private stateListeners: Set<StateListener> = new Set();
   private priceListeners: Set<PriceListener> = new Set();
   private alertListeners: Set<AlertListener> = new Set();
+  private pauseListeners: Set<(isPaused: boolean) => void> = new Set();
 
   private constructor() {
     if (typeof window !== "undefined") {
@@ -97,11 +98,21 @@ export class WebSocketManager {
     }
 
     this.clearTimers();
-    this.updateState(this.reconnectAttempt > 0 ? "RECONNECTING" : "CONNECTING");
+    this.updateState(this.reconnectAttempt > 0 ? "OFFLINE" : "CONNECTING");
 
     const host = window.location.hostname;
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const baseUrl = process.env.NEXT_PUBLIC_WS_URL || `${protocol}//${host}:8000/api/v1/ws`;
+    
+    let baseUrl = process.env.NEXT_PUBLIC_WS_URL || "";
+    
+    // Automatically translate "localhost" in build-time environment variable to current browser host
+    if (baseUrl && baseUrl.includes("localhost") && host !== "localhost" && host !== "127.0.0.1") {
+      baseUrl = baseUrl.replace("localhost", host);
+    }
+    
+    if (!baseUrl) {
+      baseUrl = `${protocol}//${host}:8000/api/v1/ws`;
+    }
     
     // Construct dynamic url with unique credentials query params
     const wsUrl = `${baseUrl}?client_id=${this.clientId}&platform=${this.platform}`;
@@ -113,6 +124,7 @@ export class WebSocketManager {
       this.ws.onopen = () => {
         console.log("[WebSocketManager] WebSocket opened.");
         this.updateState("ONLINE");
+        this.notifyPause(false);
         this.reconnectAttempt = 0;
         this.startHeartbeat();
       };
@@ -186,7 +198,7 @@ export class WebSocketManager {
     const totalDelay = delay + jitter;
 
     console.log(`[WebSocketManager] Scheduling reconnect attempt #${this.reconnectAttempt} in ${totalDelay}ms...`);
-    this.updateState("RECONNECTING");
+    this.updateState("OFFLINE");
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
@@ -259,6 +271,10 @@ export class WebSocketManager {
         this.notifyPrices(payload.data);
       } else if (payload.type === "alert_triggered" && payload.data) {
         this.notifyAlerts(payload.data);
+      } else if (payload.type === "stream_paused") {
+        this.notifyPause(true);
+      } else if (payload.type === "stream_resumed") {
+        this.notifyPause(false);
       }
     } catch (e) {
       console.error("[WebSocketManager] Error parsing JSON message payload:", e);
@@ -300,6 +316,21 @@ export class WebSocketManager {
   public subscribeToAlerts(listener: AlertListener): () => void {
     this.alertListeners.add(listener);
     return () => this.alertListeners.delete(listener);
+  }
+
+  public subscribeToPause(listener: (isPaused: boolean) => void): () => void {
+    this.pauseListeners.add(listener);
+    return () => this.pauseListeners.delete(listener);
+  }
+
+  private notifyPause(isPaused: boolean): void {
+    this.pauseListeners.forEach((listener) => {
+      try {
+        listener(isPaused);
+      } catch (e) {
+        console.error("[WebSocketManager] Pause listener error:", e);
+      }
+    });
   }
 
   private notifyPrices(data: PricesPayload): void {

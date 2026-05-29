@@ -169,6 +169,15 @@ async def async_stream_worker():
                     
                     try:
                         payload = json.loads(msg)
+                        # Forward stream control frames directly to website clients
+                        if payload.get("type") in ["stream_paused", "stream_resumed"]:
+                            if manager.loop:
+                                asyncio.run_coroutine_threadsafe(
+                                    manager.broadcast(msg),
+                                    manager.loop
+                                )
+                            continue
+
                         # Extract data either from root or 'data' subkey depending on format
                         data = payload.get("data") if payload.get("type") == "price_update" else payload
                         if not data:
