@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { fireAlertNotification } from "@/services/alertSound";
+import { WebSocketManager } from "@/services/websocket";
 
 export interface Prices {
   gold: number | null;
@@ -69,61 +70,28 @@ export function PriceProvider({ children }: { children: ReactNode }) {
       .then(data => { if (data) setPrices(data); })
       .catch(() => {});
 
-    let ws: WebSocket;
-    let reconnectTimer: NodeJS.Timeout;
-    let attempt = 0;
+    const wsManager = WebSocketManager.getInstance();
 
-    const connect = () => {
-      const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
-      const protocol = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || `${protocol}//${host}:8000/ws/prices`;
-      ws = new WebSocket(wsUrl);
+    // Subscribe to connection state changes
+    const unsubState = wsManager.subscribeToState((state) => {
+      setIsConnected(state === "ONLINE");
+    });
 
-      ws.onopen = () => { setIsConnected(true); attempt = 0; };
+    // Subscribe to realtime price streams
+    const unsubPrices = wsManager.subscribeToPrices((data) => {
+      pendingPrices.current = data;
+    });
 
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === "price_update") {
-          pendingPrices.current = data.data;
-        } else if (data.type === "alert_triggered") {
-          const a = data.data;
-          const direction = a.condition === "above" ? "📈" : "📉";
-          const msg = `🚨 ${direction} ${a.asset} went ${a.condition} $${a.target_price} (Current: $${a.current_price})`;
-          fireAlertNotification(a.id, msg, a.condition, notifEnabledRef.current, soundEnabledRef.current);
-          setLatestAlert({ ...a, timestamp: Date.now() });
-        }
-      };
+    // Subscribe to DB alerts trigger notifications
+    const unsubAlerts = wsManager.subscribeToAlerts((a) => {
+      const direction = a.condition === "above" ? "📈" : "📉";
+      const msg = `🚨 ${direction} ${a.asset} went ${a.condition} $${a.target_price} (Current: $${a.current_price})`;
+      fireAlertNotification(a.id, msg, a.condition, notifEnabledRef.current, soundEnabledRef.current);
+      setLatestAlert({ ...a, timestamp: Date.now() });
+    });
 
-      ws.onclose = () => {
-        setIsConnected(false);
-        const delay = Math.min(1000 * Math.pow(2, attempt), 30000);
-        reconnectTimer = setTimeout(() => { attempt++; connect(); }, delay);
-      };
-
-      ws.onerror = () => ws.close();
-    };
-
-    connect();
-
-    // On mobile, the WS goes stale when backgrounded (may still show OPEN but receives nothing).
-    // Force-close and immediately reconnect whenever the page becomes visible again.
-    const reconnectNow = () => {
-      clearTimeout(reconnectTimer);
-      attempt = 0;
-      if (ws) {
-        ws.onclose = null;  // prevent the backoff handler from firing
-        ws.onerror = null;
-        ws.close();
-      }
-      connect();
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") reconnectNow();
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("focus", reconnectNow);
+    // Trigger Connection Handshake
+    wsManager.connect();
 
     const flushInterval = setInterval(() => {
       if (pendingPrices.current) {
@@ -144,11 +112,11 @@ export function PriceProvider({ children }: { children: ReactNode }) {
     }, 500);
 
     return () => {
-      clearTimeout(reconnectTimer);
+      unsubState();
+      unsubPrices();
+      unsubAlerts();
       clearInterval(flushInterval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", reconnectNow);
-      if (ws) ws.close();
+      wsManager.disconnect();
     };
   }, []);
 
